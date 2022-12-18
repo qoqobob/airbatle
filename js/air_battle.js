@@ -1,9 +1,9 @@
-document.body.innerHTML="<h2 id='heading'>Air battle</h2><div class='dark-mode-choice'><input type='radio' name='mode' id='light-mode'><label for='light-mode' class='light-mode'>Day flight</label><br><input type='radio' name='mode' id='dark-mode'><label for='dark-mode' class='dark-mode'>Night flight</label><br></div><div id='play-screen'><img src='img/myPlane0.png' class='myPlane'></div><div class='under-screen'><button id='restart'>Restart</button><p id='arrows-use'>Use arrows to move: ← Left, → Right, ↑ Up, ↓ Down. Press [space] to fire. Pause with \"p\" key.</p></div><script src='js/air_battle.js'></script>";
+document.body.innerHTML="<h2 id='heading'>Air battle</h2><div class='dark-mode-choice'><input type='radio' name='mode' id='light-mode'><label for='light-mode' class='light-mode'>Day flight</label><br><input type='radio' name='mode' id='dark-mode'><label for='dark-mode' class='dark-mode'>Night flight</label><br></div><div id='play-screen'><img src='img/myPlane0.png' class='player'></div><div class='under-screen'><button id='restart'>Restart</button><p id='arrows-use'>Use arrows to move: ← Left, → Right, ↑ Up, ↓ Down. Press [space] to fire. Pause with \"p\" key.</p></div><script src='js/air_battle.js'></script>";
 const BODY = document.querySelector("body");
 const HDNG = document.getElementById("heading");
 const PLAY_SCREEN = document.getElementById("play-screen");
 const BTN_RESTART = document.getElementById("restart");
-var MY_AIRPLANE = document.querySelector(".myPlane");
+var MY_AIRPLANE = document.querySelector(".player");
 var LIVES_DIV = document.createElement("div");
 PLAY_SCREEN.appendChild(LIVES_DIV);
 var SCORE_DIV = document.createElement("div");
@@ -12,7 +12,8 @@ var GAMEOVER_DIV = document.createElement("div");
 PLAY_SCREEN.appendChild(GAMEOVER_DIV);
 var BOSS_HEALTH_DIV = document.createElement("div");
 PLAY_SCREEN.appendChild(BOSS_HEALTH_DIV);
-
+var WEAPON_DIV = document.createElement("div");
+PLAY_SCREEN.appendChild(WEAPON_DIV);
 
 const S_WIDTH = PLAY_SCREEN.clientWidth;
 const S_HEIGHT = PLAY_SCREEN.clientHeight;
@@ -47,17 +48,18 @@ var PLANES;//array with airplaines and their properties
 var BULLETS;//array with bullets and their properties, index corresponds to the airplane which shot that bullets
 var numOfBossPlane;
 var additionalTacts;
-var myPlaneTrace;
+var playerTrace;
 var propellerCounter;
 var myFireInterval; //milliseconds
+var playerBulletsPerShot;
 var SHOT_ENEMIES_COUNTER;
 
-class Queue{
+class Trace{
     constructor(num){
         this.point=[];
         this.queueLength=num;
     };
-    toQueue(coordX, coordY){
+    toTrace(coordX, coordY){
         this.point.push({
             "x": coordX,
             "y": coordY
@@ -87,8 +89,8 @@ function restart(){
     DIFFICULTY = [// first stage and only so far, has 5 level of progressing difficulty, when last level achived Boss airplane appears.
         {
             "score":        [0,         0.1, 0.2, 0.4, 0.7, 1],
-            "enemy1Rate":   [45,        35,  30,  25,  20,  25],
-            "bullet1Rate":  [40,        36,  32,  28,  24,  28],
+            "enemy1Rate":   [40,        35,  30,  25,  20,  25],
+            "bullet1Rate":  [39,        36,  32,  28,  24,  28],
             "enemy2Rate":   [Infinity,  45,  35,  30,  22,  Infinity],
             // "enemy2Rate":   [20,  45,  35,  30,  22,  Infinity],
             "bullet2Rate":  [Infinity,  25,  23,  22,  20,  Infinity],
@@ -97,6 +99,7 @@ function restart(){
             "bulletBossRate": 20,
         }
     ];
+
     myFireInterval=1000; //milliseconds, smallest time between shots
     propellerCounter=0;// for propellers rotation
     additionalTacts=0;// to see explosion of boss airplane / players airplane before win game / game over 
@@ -104,14 +107,15 @@ function restart(){
     backgroundNum=0;//for sea movement, illusion of flying over sea
     score=0; // score propostional to counter
     counter=0;
-    lives=20;
-    bossHealth=10;
-    startPause=0;
-    endPause=0;
-    explosionCounter=[];
-    explodedObject=[];
-    explosions=[];
-    myPlaneTrace = new Queue(30);
+    lives=3;// player health
+    playerBulletsPerShot=1;
+    bossHealth=10;//boss health
+    startPause=0;//time when pause has started
+    endPause=0;//time when pause has ended
+    explosionCounter=[];// array of individual counters for each explosion <img> element, is used to change size of an explosion <img>
+    explodedObject=[];// array of airplanes <img> elements which have been shot
+    explosions=[];// array of explosions <img> elements
+    playerTrace = new Trace(30);// The Boss follows point where player was 30 TACT intervals ago
 
     IMG = [
         ['img/myPlane0.png','img/myPlane1.png','img/myPlane2.png'],//my airplane
@@ -123,7 +127,7 @@ function restart(){
     KEY_PRESSED = [];
     PLANES=[//array with airplaines and their properties
         {
-        "class": "myPlane",
+        "class": "player",
         "src": IMG[0],
         "xCrdnt": (S_WIDTH-getWidth(MY_AIRPLANE))*0.5,
         "yCrdnt": S_HEIGHT-getHeight(MY_AIRPLANE),
@@ -150,9 +154,8 @@ function restart(){
         "enemy2ndPlane":0,
         "bossPlane":0,
     }
-    // clearInterval(wait);
-    PLAY_SCREEN.innerHTML="<img src='img/myPlane0.png' class='myPlane'>";
-    MY_AIRPLANE = document.querySelector(".myPlane");
+    PLAY_SCREEN.innerHTML="<img src='img/myPlane0.png' class='player'>";
+    MY_AIRPLANE = document.querySelector(".player");
     LIVES_DIV = document.createElement("div");
     SCORE_DIV = document.createElement("div");
     PLAY_SCREEN.appendChild(LIVES_DIV);
@@ -162,125 +165,19 @@ function restart(){
     BOSS_HEALTH_DIV = document.createElement("div");
     PLAY_SCREEN.appendChild(BOSS_HEALTH_DIV);
     BOSS_HEALTH_DIV.style.display="none";
+    WEAPON_DIV = document.createElement("div");
+    PLAY_SCREEN.appendChild(WEAPON_DIV);
 
     PLANES[0].xCrdnt=(S_WIDTH-getWidth(MY_AIRPLANE))*0.5;
     PLANES[0].yCrdnt=S_HEIGHT-getHeight(MY_AIRPLANE);
     MY_AIRPLANE.style.left=PLANES[0].xCrdnt+"px";
     MY_AIRPLANE.style.top=PLANES[0].yCrdnt+"px";
 
-    GAMEOVER_DIV.innerHTML=`<p>Press [space] to play.<br>Survive ${GAME_DURATION/60000} min to fight the final boss.</p>`;
+    GAMEOVER_DIV.innerHTML=`<p><b>Press [space] to play.</b><br>Survive ${GAME_DURATION/60000} min to fight <img src='${IMG[4][0]}' style='width: 30px; transform: rotate(180deg);'></img> the final boss.</p><div style='display:flex; justify-content:center;'><fieldset style='border: 1px solid black; border-radius: 10px; text-align:center;'><legend >Controls:</legend>Fire: [space]<br>Left: [←]<br>Right: [→]<br>Up: [↑]<br>Down: [↓]<br>Pause: [p]</fieldset><fieldset style='border: 1px solid black; border-radius: 10px; text-align:center;'><legend>Rewards:</legend><span style='vertical-align: middle;'>5✕</span><img src='${IMG[2][1]}' style='width: 25px; margin: 2px; transform: rotate(180deg);'> = <img src='${IMG[1][0]}' style='margin: 1px; transform: rotate(180deg);'></img>→<img src='${IMG[1][0]}' style='margin: 1px; transform: rotate(180deg);'></img><img src='${IMG[1][0]}' style='margin: 1px; transform: rotate(180deg);'></img><img src='${IMG[1][0]}' style='margin: 1px; transform: rotate(180deg);'></img><br></img><span style='vertical-align: middle;'>10✕</span><img src='${IMG[3][1]}' style='width: 25px; margin: 2px; transform: rotate(180deg);'></img> = <sup style='font-size: 10px;'>+1</sup><div style='display:inline-block; vertical-align: middle; width:15px; height:15px; margin:1px; background-color: green; border-radius:5px;'></div><span style='vertical-align: middle;'></span><img src='${IMG[0][0]}' style='width: 25px;'></img></fieldset</div>`;
     GAMEOVER_DIV.style.left=(0.5*S_WIDTH-0.5*getWidth(GAMEOVER_DIV))+"px";
     GAMEOVER_DIV.style.top=(0.5*S_HEIGHT-0.5*getHeight(GAMEOVER_DIV))+"px";
     GAMEOVER_DIV.style.zIndex=10;
 }
-
-{//old code if restart() would not work
-// var GAME_DURATION = 60000;//miliseconds befor boss appears
-// var TOTAL_SCORE = 1000;
-// var MOVE_PER_CLICK=10;//px per keydown repeat frequency
-// var BULLET_SPEED=10;//px per setInterval tact
-// var PLANE_SPEED=3//px per setInterval tact
-// var TACT = 300;// milisec
-// var TRIG_K = Math.PI/180;
-// var playGame;
-// var DIFFICULTY = [// first stage and only so far, has 5 level of progressing difficulty, when last level achived Boss airplane appears.
-//     {
-//         "score":        [0,         0.1, 0.2, 0.4, 0.7, 1],
-//         "enemy1Rate":   [45,        35,  30,  25,  20,  25],
-//         "bullet1Rate":  [40,        36,  32,  28,  24,  28],
-//         // "enemy2Rate":   [Infinity,  45,  35,  30,  22,  Infinity],
-//         "enemy2Rate":   [20,  45,  35,  30,  22,  Infinity],
-//         // "bullet2Rate":  [Infinity,  25,  23,  22,  20,  Infinity],
-//         "bullet2Rate":  [10,  25,  23,  22,  20,  Infinity],
-//         "boss":         [false, false, false, false, false, true]
-//     }
-// ];
-// var backgroundNum=0;
-// var score=0; 
-// var counter=0;
-// var lives=3;
-// var explosionCounter=[];
-// var explodedObject=[];
-// var explosions=[];
-
-
-// var IMG = [
-//     ['img/myPlane0.png','img/myPlane1.png','img/myPlane2.png'],//my airplane
-//     ['img/bullet0.png','img/bullet1.png'],//bullets
-//     ['img/enemy1stPlane0.png','img/enemy1stPlane1.png','img/enemy1stPlane2.png'],//enemy airplane 
-//     ['img/enemy2ndPlane0.png','img/enemy2ndPlane1.png','img/enemy2ndPlane2.png'],//enemy airplane 
-//     ['img/bossPlane.png0','img/bossPlane1.png','img/bossPlane2.png']//boss airplane
-// ];
-// var KEY_PRESSED = [];
-// var PLANES=[//array with airplaines and their properties
-//     {
-//     "class": "myPlane",
-//     "src": IMG[0],
-//     "xCrdnt": (S_WIDTH-getWidth(MY_AIRPLANE))*0.5,
-//     "yCrdnt": S_HEIGHT-getHeight(MY_AIRPLANE),
-//     "angle": 0,
-//     "speed": 0,
-//     "birth": null,
-//     "live": null
-//     }
-// ];
-// var BULLETS =[//array with bullets and their properties, index corresponds to the airplane which shot that bullets
-//     {
-//     "class": [],
-//     "src": IMG[1][0],
-//     "xCrdnt": [],
-//     "yCrdnt": [],
-//     "angle": [],
-//     "speed": BULLET_SPEED,
-//     "birth": [],
-//     "live": []
-//     }
-// ];
-}
-PLAY_SCREEN.style.filter = "brightness(200%)";
-RADIO_DAY.checked = true;
-RADIO_DAY.addEventListener("click", function(){
-    PLAY_SCREEN.style.filter = "brightness(200%)";
-    RADIO_DAY.checked = true;
-    PRGRF.style.color = "black";
-    BODY.style.backgroundColor = "white";
-    LABEL_DAY.style.color = "black";
-    LABEL_NIGHT.style.color = "black";
-    HDNG.style.color = "black";
-    RADIO_DAY.blur();
-    RADIO_NIGHT.blur();
-})
-RADIO_NIGHT.addEventListener("click", function(){
-    PLAY_SCREEN.style.filter = "brightness(100%)";
-    RADIO_NIGHT.checked = true;
-    PRGRF.style.color = "darkgray";
-    BODY.style.backgroundColor = "black";
-    LABEL_DAY.style.color = "darkgray";
-    LABEL_NIGHT.style.color = "darkgray";
-    HDNG.style.color = "darkgray";
-    RADIO_DAY.blur();
-    RADIO_NIGHT.blur();
-})
-BTN_RESTART.addEventListener("click", function(){
-    BTN_RESTART.blur();
-    // PLAY_SCREEN.focus();
-    restart();
-    waitSpacePress();
-})
-window.addEventListener("load", function(){//for chrome browser
-    PLANES[0].xCrdnt=(S_WIDTH-getWidth(MY_AIRPLANE))*0.5;
-    PLANES[0].yCrdnt=S_HEIGHT-getHeight(MY_AIRPLANE);
-    MY_AIRPLANE.style.left=PLANES[0].xCrdnt+"px";
-    MY_AIRPLANE.style.top=PLANES[0].yCrdnt+"px";
-})
-document.addEventListener("keydown", function(e){
-    KEY_PRESSED[e.key] = true;
-    waitSpacePress();
-    pauseGame();
-})
-document.addEventListener("keyup", function(e){
-    delete KEY_PRESSED[e.key];
-})
 function background(){//moves background sea for fly forward illusion 
     if((counter % 2) == 0){
         backgroundNum++;
@@ -288,7 +185,6 @@ function background(){//moves background sea for fly forward illusion
             backgroundNum=0;
         }
         PLAY_SCREEN.style.backgroundImage = `url('img/backgroung${backgroundNum}.png')`;
-        // PLAY_SCREEN.style.filter = "brightness(200%)";
     }
 }
 function getWidth(element){
@@ -299,7 +195,6 @@ function getHeight(element){
     let rectangle=element.getBoundingClientRect();
     return rectangle.height;
 }
-
 function propellerRotation(){
     propellerCounter++;
     if(propellerCounter>=3){propellerCounter=0};
@@ -309,33 +204,57 @@ function propellerRotation(){
     }
 }
 function showStats(){//shows score and lives
+    LIVES_DIV.style.zIndex=10;
+    LIVES_DIV.style.opacity=0.9;
     LIVES_DIV.style.right="0px";
     LIVES_DIV.style.top="0px";
     LIVES_DIV.style.margin="5px";
+    LIVES_DIV.style.display="flex";
+
     let output ="";
     for (let i = 0; i < lives; i++) {
-        output+=`<img src='${IMG[0][0]}' style='width: 20px; margin: 2px;'></img>`;
+        // output+=`<img src='${IMG[0][0]}' style='width: 20px; margin: 2px;'></img>`;
+        output+=`<div style='width:15px; height:15px; margin:1px; background-color: green; border-radius:5px;'></div>`;
     }
+    output+=`<img src='${IMG[0][0]}' style='width: 20px; margin: 2px;'></img>`;
     LIVES_DIV.innerHTML=output;
+    SCORE_DIV.style.zIndex=10;
+    SCORE_DIV.style.opacity=0.9;
     SCORE_DIV.style.right="0px";
     SCORE_DIV.style.bottom="0px";
     SCORE_DIV.style.margin="5px";
     SCORE_DIV.style.textAlign="right";
     output ="";
-    output+=`${SHOT_ENEMIES_COUNTER['enemy1stPlane']} x <img src='${IMG[2][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
-    output+=`${SHOT_ENEMIES_COUNTER['enemy2ndPlane']} x <img src='${IMG[3][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
+    output+=`${SHOT_ENEMIES_COUNTER['enemy1stPlane']} ✕ <img src='${IMG[2][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
+    output+=`${SHOT_ENEMIES_COUNTER['enemy2ndPlane']} ✕ <img src='${IMG[3][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
     output+="Score: "+(score>=TOTAL_SCORE ? TOTAL_SCORE : Math.floor(score));
     SCORE_DIV.innerHTML=output;
-
     BOSS_HEALTH_DIV.style.zIndex=10;
     BOSS_HEALTH_DIV.style.opacity=0.8;
     BOSS_HEALTH_DIV.style.left="0px";
     BOSS_HEALTH_DIV.style.top="0px";
     BOSS_HEALTH_DIV.style.margin="5px";
-    BOSS_HEALTH_DIV.style.width=`${20*bossHealth}px`;
-    BOSS_HEALTH_DIV.style.height="20px";
-    BOSS_HEALTH_DIV.style.backgroundColor="#8d0000";
-    BOSS_HEALTH_DIV.innerHTML=`<img src='${IMG[4][0]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img>`;
+    // BOSS_HEALTH_DIV.style.display="flex";
+    // BOSS_HEALTH_DIV.style.width=`${20*bossHealth}px`;
+    // BOSS_HEALTH_DIV.style.height="20px";
+    // BOSS_HEALTH_DIV.style.backgroundColor="#8d0000";
+    output=`<img src='${IMG[4][0]}' style='width: 20px; margin: 2px; transform: rotate(180deg); display: block;'></img>`
+    for (let i = 0; i < bossHealth; i++) {
+        // output+=`<img src='${IMG[0][0]}' style='width: 20px; margin: 2px;'></img>`;
+        output+=`<div style='width:15px; height:15px; margin:1px; background-color: #8d0000; border-radius:5px;'></div>`;
+    }
+    // BOSS_HEALTH_DIV.innerHTML=`<img src='${IMG[4][0]}' style='width: 20px; margin: 2px; transform: rotate(180deg); display: block;'></img>`;
+    BOSS_HEALTH_DIV.innerHTML=output;
+    WEAPON_DIV.style.zIndex=10;
+    WEAPON_DIV.style.opacity=0.9;
+    WEAPON_DIV.style.left="0px";
+    WEAPON_DIV.style.bottom="0px";
+    WEAPON_DIV.style.margin="5px";
+    output="Gun:";
+    for (let i = 0; i < playerBulletsPerShot; i++) {
+        output+=`<img src='${IMG[1][0]}' style='margin: 1px; transform: rotate(180deg);'></img>`;
+    }
+    WEAPON_DIV.innerHTML=output;
 }
 function spawnEnemies(){//throws different types enemy airplanes and fire bullets depending on achived game difficulty
     score=counter*TACT/GAME_DURATION*TOTAL_SCORE;
@@ -408,7 +327,7 @@ function spawnEnemies(){//throws different types enemy airplanes and fire bullet
         if(DIFFICULTY[0].boss){
             DIFFICULTY[0].boss=false;
             addEnemyPlane(IMG[4][0], "bossPlane")
-            BOSS_HEALTH_DIV.style.display="";
+            BOSS_HEALTH_DIV.style.display="flex";
         }
         if((counter % DIFFICULTY[0].enemy1Rate[5]) == 0){
             addEnemyPlane(IMG[2][0],"enemy1stPlane");
@@ -425,8 +344,7 @@ function spawnEnemies(){//throws different types enemy airplanes and fire bullet
             if((counter % DIFFICULTY[0].bullet2Rate[5]) == 0){
                 enemiesFire("enemy2ndPlane");
             }
-    }
-    // console.log(score+"  ");       
+    }       
 }
 function addEnemyPlane(imgLink, type){//throws enemy airplanes on top of play screen along width in random place
     const d = new Date();
@@ -453,38 +371,32 @@ function addEnemyPlane(imgLink, type){//throws enemy airplanes on top of play sc
     PLANES[arraySize].xCrdnt=Math.random()*(S_WIDTH-getWidth(PLANE_IMG));
     PLANES[arraySize].yCrdnt=-getHeight(PLANE_IMG);
     if(type=="enemy1stPlane"){
-
         PLANES[arraySize].src=IMG[2];
         PLANES[arraySize].angle=90;
         PLANES[arraySize].speed=PLANE_SPEED;
         PLANES[arraySize].live=1.3*TACT*S_HEIGHT/PLANES[arraySize].speed;
-        // PLANE_IMG.style.transformOrigin="0% 0%";
         PLANE_IMG.style.transform="rotate(180deg)";
     }
     else if(type=="enemy2ndPlane"){
         PLANES[arraySize].src=IMG[3];
-        // PLANES[arraySize].angle=45+90*Math.random();
         let dY = PLANES[0].yCrdnt-PLANES[arraySize].yCrdnt;
         let dX = -PLANES[0].xCrdnt+PLANES[arraySize].xCrdnt;
         PLANES[arraySize].angle=90+Math.asin(dX/Math.sqrt(Math.pow(dY, 2)+Math.pow(dX, 2)))/TRIG_K;
         PLANES[arraySize].speed=2*PLANE_SPEED;
-        PLANES[arraySize].live=1.0*TACT*Math.sqrt(S_WIDTH*S_WIDTH+S_HEIGHT*S_HEIGHT)/PLANES[arraySize].speed;
-        PLANE_IMG.style.transformOrigin="50% 50%";
+        PLANES[arraySize].live=1.0*TACT*Math.sqrt(S_WIDTH*S_WIDTH+S_HEIGHT*S_HEIGHT)/PLANES[arraySize].speed;      
         PLANE_IMG.style.transform=`rotate(${-90+PLANES[arraySize].angle}deg)`;
-        // PLANE_IMG.style.transform=`rotate(${90+45}deg)`;
+        PLANE_IMG.style.transformOrigin="50% 50%";
     }
     else if(type=="bossPlane"){
         PLANES[arraySize].src=IMG[4];
         numOfBossPlane=arraySize;
-        // PLANES[arraySize].angle=45+90*Math.random();
         let dY = PLANES[0].yCrdnt-PLANES[arraySize].yCrdnt;
         let dX = -PLANES[0].xCrdnt+PLANES[arraySize].xCrdnt;
         PLANES[arraySize].angle=90+Math.asin(dX/Math.sqrt(Math.pow(dY, 2)+Math.pow(dX, 2)))/TRIG_K;
         PLANES[arraySize].speed=1.0*PLANE_SPEED;
         PLANES[arraySize].live=Infinity;
-        PLANE_IMG.style.transformOrigin="50% 50%";
         PLANE_IMG.style.transform=`rotate(${-90+PLANES[arraySize].angle}deg)`;
-        // PLANE_IMG.style.transform=`rotate(${90+45}deg)`;
+        PLANE_IMG.style.transformOrigin="50% 50%";
     }
     PLANES[arraySize].birth=d.getTime();
     PLANE_IMG.style.left=PLANES[arraySize].xCrdnt+"px";
@@ -494,98 +406,84 @@ function addEnemyPlane(imgLink, type){//throws enemy airplanes on top of play sc
 }
 function fireMyBullets(){//my airplane places (fires) bullets if space is pressed, bullets are brought to move with other function
     if(KEY_PRESSED[" "]){
-        const d = new Date();
-        // console.log(BULLETS[0].birth[-1]);
-        // console.log("test");
-        const BULLET_IMG = document.createElement("img");
-        PLAY_SCREEN.appendChild(BULLET_IMG);
-        let posX=parseInt(MY_AIRPLANE.style.left);
-        let posY=parseInt(MY_AIRPLANE.style.top);
-        let arraySize = BULLETS[0].class.length;
-        BULLETS[0].class.push("bullet_"+"0"+"_"+arraySize);
-        BULLET_IMG.setAttribute("class", BULLETS[0].class[arraySize]);
-        BULLET_IMG.setAttribute("src", IMG[1][0]);
-        BULLETS[0].angle.push(-90); 
-        BULLETS[0].xCrdnt.push(posX+(getWidth(MY_AIRPLANE)-getWidth(BULLET_IMG))*0.5);
-        BULLETS[0].yCrdnt.push(posY);
-        
-        BULLETS[0].birth.push(d.getTime()); 
-        // BULLETS[0].speed = BULLET_SPEED;
-        BULLETS[0].live.push(1.1*TACT*Math.sqrt(S_WIDTH*S_WIDTH+S_HEIGHT*S_HEIGHT)/BULLETS[0].speed); 
-
-        BULLET_IMG.style.left=BULLETS[0].xCrdnt[arraySize]+"px";
-        BULLET_IMG.style.top=BULLETS[0].yCrdnt[arraySize]+"px";
-        BULLET_IMG.style.transform=`rotate(180deg)`;
-        BULLET_IMG.style.zIndex=-1;
-        BULLET_IMG.style.margin="0px";
-        BULLET_IMG.style.padding="0px";
-        if((BULLETS[0].birth[arraySize]-BULLETS[0].birth[arraySize-1])<myFireInterval){
-            BULLET_IMG.remove();
-            BULLETS[0].class.pop();
-            BULLETS[0].angle.pop();
-            BULLETS[0].xCrdnt.pop();
-            BULLETS[0].yCrdnt.pop();
-            BULLETS[0].birth.pop();
-            // BULLETS[0].speed.pop();
-            BULLETS[0].live.pop();
+        let arraySize;
+        for (let j = 0; j < playerBulletsPerShot; j++) {
+            const d = new Date();
+            const dAngle=2;
+            const BULLET_IMG = document.createElement("img");
+            PLAY_SCREEN.appendChild(BULLET_IMG);
+            let posX=parseInt(MY_AIRPLANE.style.left);
+            let posY=parseInt(MY_AIRPLANE.style.top);
+            arraySize = BULLETS[0].class.length;
+            BULLETS[0].class.push("bullet_"+"0"+"_"+arraySize);
+            BULLET_IMG.setAttribute("class", BULLETS[0].class[arraySize]);
+            BULLET_IMG.setAttribute("src", IMG[1][0]);
+            BULLETS[0].angle.push(-90-0.5*(playerBulletsPerShot-1)*dAngle+j*dAngle); 
+            BULLETS[0].xCrdnt.push(posX+(getWidth(MY_AIRPLANE)-getWidth(BULLET_IMG))*0.5);
+            BULLETS[0].yCrdnt.push(posY+0.5*getHeight(BULLET_IMG)*Math.pow(-1, j));
+            BULLETS[0].birth.push(d.getTime());
+            BULLETS[0].live.push(1.1*TACT*Math.sqrt(S_WIDTH*S_WIDTH+S_HEIGHT*S_HEIGHT)/BULLETS[0].speed); 
+            BULLET_IMG.style.left=BULLETS[0].xCrdnt[arraySize]+"px";
+            BULLET_IMG.style.top=BULLETS[0].yCrdnt[arraySize]+"px";
+            BULLET_IMG.style.transform=`rotate(${-90+BULLETS[0].angle[arraySize]}deg)`;;
+            BULLET_IMG.style.zIndex=-1;
+            BULLET_IMG.style.margin="0px";
+            BULLET_IMG.style.padding="0px";
+        }
+        if((BULLETS[0].birth[arraySize]-BULLETS[0].birth[arraySize-playerBulletsPerShot])<myFireInterval){
+            for (let j = 0; j < playerBulletsPerShot; j++) { 
+                const BULLET_IMG = document.querySelector(`.${BULLETS[0].class[arraySize-j]}`);
+                BULLET_IMG.remove();
+                BULLETS[0].class.pop();
+                BULLETS[0].angle.pop();
+                BULLETS[0].xCrdnt.pop();
+                BULLETS[0].yCrdnt.pop();
+                BULLETS[0].birth.pop();
+                BULLETS[0].live.pop();
+            }
         }
     }
 }
 function enemiesFire(type){//enemy airplane places (fire) bullets, bullets are brought to move with other function
     for (let i = 1; i < PLANES.length; i++) {
         const P_IMG = document.querySelector(`.${PLANES[i].class}`);
-        let planeClass=PLANES[i].class.substring(0,13);
+        const planeType=getPlaneType(P_IMG);;
         let bulletFanFeathers=1;
         let bulletFanAngle= 0;
         if (type=="bossPlane"){
             bulletFanFeathers=9;
             bulletFanAngle= 180;
-            planeClass=PLANES[i].class.substring(0,9);
         }
-        let dAngle=bulletFanAngle/bulletFanFeathers;
-        if((P_IMG.style.display != "none") && (planeClass==type)){
+        const dAngle=bulletFanAngle/bulletFanFeathers;
+        if((P_IMG.style.display != "none") && (planeType==type)){
             for (let j = 0; j < bulletFanFeathers; j++) {
                 const d = new Date();
                 const BULLET_IMG = document.createElement("img");
                 PLAY_SCREEN.appendChild(BULLET_IMG);
-                let posX=PLANES[i].xCrdnt;
-                let posY=PLANES[i].yCrdnt;
-                let arraySize = BULLETS[i].class.length;
+                const posX=PLANES[i].xCrdnt;
+                const posY=PLANES[i].yCrdnt;
+                const arraySize = BULLETS[i].class.length;
                 BULLETS[i].class.push("bullet_"+i+"_"+arraySize);
                 BULLET_IMG.setAttribute("class", BULLETS[i].class[arraySize]);
                 BULLETS[i].src=IMG[1][0];
                 BULLET_IMG.setAttribute("src", BULLETS[i].src);
-
                 BULLETS[i].angle.push(PLANES[i].angle-0.5*bulletFanAngle+j*dAngle);
-    
                 const fi=PLANES[i].angle-90;
                 const hPlane=getHeight(P_IMG);
                 const wPlane=getWidth(P_IMG);
                 const hBullet=getHeight(BULLET_IMG);
                 const wBullet=getWidth(BULLET_IMG);
-                let X0=posX+0.5*wPlane-0.5*wBullet;
-                let Y0=posY+0.5*hPlane-0.5*hBullet;
-                
+                const X0=posX+0.5*wPlane-0.5*wBullet;
+                const Y0=posY+0.5*hPlane-0.5*hBullet;
                 BULLETS[i].xCrdnt.push(X0);
                 BULLETS[i].yCrdnt.push(Y0);
-                 
                 BULLETS[i].birth.push(d.getTime());
                 BULLETS[i].speed = BULLET_SPEED;
                 BULLETS[i].live.push(1.1*TACT*Math.sqrt(S_WIDTH*S_WIDTH+S_HEIGHT*S_HEIGHT)/BULLETS[i].speed); 
-                // if(type=="enemy1stPlane"){
-                //     BULLET_IMG.style.left=BULLETS[i].xCrdnt[arraySize]+"px";
-                //     BULLET_IMG.style.top=BULLETS[i].yCrdnt[arraySize]+"px";
-                // }
-                // if(type=="enemy2ndPlane"){
-                //     BULLET_IMG.style.left=BULLETS[i].xCrdnt[arraySize]+"px";
-                //     BULLET_IMG.style.top=BULLETS[i].yCrdnt[arraySize]+"px";
-                // }
                 BULLET_IMG.style.left=BULLETS[i].xCrdnt[arraySize]+"px";
                 BULLET_IMG.style.top=BULLETS[i].yCrdnt[arraySize]+"px";
-    
-                BULLET_IMG.style.transformOrigin="50% 50%";
-                // BULLET_IMG.style.transform=`rotate(${-90+PLANES[i].angle}deg)`;
                 BULLET_IMG.style.transform=`rotate(${-90+BULLETS[i].angle[arraySize]}deg)`;
+                BULLET_IMG.style.transformOrigin="50% 50%";
                 BULLET_IMG.style.zIndex=-1;
                 BULLET_IMG.style.margin="0px";
                 BULLET_IMG.style.padding="0px";                
@@ -615,29 +513,6 @@ function hideOverflowedElements(){//hides airplanes and bullets which were alive
         }
     }
 }
-// function killEnemyPlane(){// my bullets collition with enemy airplane
-//     for (let j = 0; j < BULLETS[0].class.length; j++) {
-//         const B_IMG = document.querySelector(`.${BULLETS[0].class[j]}`);
-//         if(B_IMG.style.display!="none"){
-//             for (let i = 1; i < PLANES.length; i++) {
-//                 const P_IMG = document.querySelector(`.${PLANES[i].class}`);
-//                 if(P_IMG.style.display!="none"){
-//                     const rightBulletEdge=BULLETS[0].xCrdnt[j]+getWidth(B_IMG);
-//                     const rightPlaneEdge=PLANES[i].xCrdnt+getWidth(P_IMG);
-//                     if((BULLETS[0].xCrdnt[j]>PLANES[i].xCrdnt) && (rightBulletEdge<rightPlaneEdge)){
-//                         const btmPlaneEdge=PLANES[i].yCrdnt+getHeight(P_IMG);
-//                         if((BULLETS[0].yCrdnt[j]>PLANES[i].yCrdnt) && (BULLETS[0].yCrdnt[j]<btmPlaneEdge)){
-//                             P_IMG.style.display="none";
-//                             B_IMG.style.display="none";
-//                             addToQueue(P_IMG);
-//                             // addToQueue(B_IMG);
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
 function killEnemyPlane(){// my bullets collition with enemy airplane
     for (let j = 0; j < BULLETS[0].class.length; j++) {
         const B_IMG = document.querySelector(`.${BULLETS[0].class[j]}`);
@@ -650,11 +525,11 @@ function killEnemyPlane(){// my bullets collition with enemy airplane
                             P_IMG.style.display="none";
                             B_IMG.style.display="none";
                             addToQueue(P_IMG);
-
                         }else{
                             B_IMG.style.display="none";
                             bossHealth--;
-                            beingShotAnimation(P_IMG);
+                            highlightAnimation(P_IMG);
+                            highlightAnimation(BOSS_HEALTH_DIV);
                             if(bossHealth<=0){addToQueue(P_IMG);}
                         }
                     }
@@ -677,9 +552,34 @@ function isCollision(element0, element1){
         return false;
     }
 }
+function getPlaneType(element){
+    const filename = element.src.substring(element.src.lastIndexOf('/')+1);
+    const planeType=filename.substring(0,(filename.length-5));
+    return planeType;
+}
+function countShotPlane(element){
+    const planeType=getPlaneType(element);
+    if(element!=explodedObject[explodedObject.length-1]){//does not allow to count same already shot airplane
+        SHOT_ENEMIES_COUNTER[planeType]++;
+    }
+    reward(planeType);
+}
+function reward(planeType){
+    if(planeType=="enemy2ndPlane"){
+        if((SHOT_ENEMIES_COUNTER["enemy2ndPlane"] % 10) == 0){
+            lives++;
+            highlightAnimation(LIVES_DIV);
+        }  
+    }
+    if(planeType=="enemy1stPlane"){
+        if((SHOT_ENEMIES_COUNTER["enemy1stPlane"] % 5) == 0){
+            playerBulletsPerShot=3;
+            highlightAnimation(WEAPON_DIV);
+        }
+    }
+}
 function addToQueue(element){
-    let planeClass=element.className.substring(0,(element.className.length-2));
-    SHOT_ENEMIES_COUNTER[planeClass]++;
+    countShotPlane(element);
     explodedObject.push(element);
     explosionCounter.push(0);    
     const EXPL = document.createElement("img");
@@ -743,7 +643,8 @@ function killMyPlane(){//enemy airplanes and bullets collision with my airplane
                 if(isCollision(MY_P_IMG, B_IMG)){
                     B_IMG.style.display="none";
                     lives--;
-                    beingShotAnimation(MY_P_IMG);
+                    playerBulletsPerShot=1;
+                    highlightAnimation(MY_P_IMG);
                     if(lives<=0){addToQueue(MY_P_IMG);}
                 } 
             }
@@ -755,16 +656,17 @@ function killMyPlane(){//enemy airplanes and bullets collision with my airplane
             if(isCollision(MY_P_IMG, P_IMG)){
                 if(i!=numOfBossPlane){
                     P_IMG.style.display="none";
+                    countShotPlane(P_IMG);
                 }
-                // addToQueue(P_IMG);
                 lives--;
-                beingShotAnimation(MY_P_IMG);
+                playerBulletsPerShot=1;
+                highlightAnimation(MY_P_IMG);
                 if(lives<=0){addToQueue(MY_P_IMG);}
             }
         }
     }
 }
-function beingShotAnimation(element){
+function highlightAnimation(element){
     element.style.animation="beingShot";
     element.style.animationDuration="0.1s";
     element.style.animationIterationCount ="3";
@@ -772,60 +674,16 @@ function beingShotAnimation(element){
         element.style.animation="";
     })
 }
-// function killMyPlane(){//enemy airplanes and bullets collision with my airplane
-//     for (let i = 1; i < BULLETS.length; i++) {//collision with a bullet
-//         for (let j = 0; j < BULLETS[i].class.length; j++) {
-//             const B_IMG = document.querySelector(`.${BULLETS[i].class[j]}`);
-//             if(B_IMG.style.display!="none"){
-        
-//                 const P_IMG = document.querySelector(`.${PLANES[0].class}`);
-//                 const rightBulletEdge=BULLETS[i].xCrdnt[j]+getWidth(B_IMG);
-//                 const rightPlaneEdge=PLANES[0].xCrdnt+getWidth(P_IMG);
-//                 if((BULLETS[i].xCrdnt[j]>PLANES[0].xCrdnt) && (rightBulletEdge<rightPlaneEdge)){
-//                     const btmBulletEdge=BULLETS[i].yCrdnt[j]+getHeight(B_IMG);
-//                     const btmPlaneEdge=PLANES[0].yCrdnt+getHeight(P_IMG);
-//                     if((btmBulletEdge>PLANES[0].yCrdnt) && (btmBulletEdge<btmPlaneEdge)){ 
-//                         B_IMG.style.display="none";
-//                         lives--;
-//                     }
-//                 } 
-//             }
-//         }
-//     }
-//     for (let i = 1; i < PLANES.length; i++) {//collision with an enemy plane
-//         const P_IMG = document.querySelector(`.${PLANES[i].class}`);
-//         const rightPlaneEdge=PLANES[i].xCrdnt+getWidth(P_IMG);
-//         const rightMyPlanEdge=PLANES[0].xCrdnt+getWidth(MY_AIRPLANE);
-//         const btmPlaneEdge=PLANES[i].yCrdnt+getHeight(P_IMG);
-//         const btmMyPlaneEdge=PLANES[0].yCrdnt+getHeight(MY_AIRPLANE);
-//         if(P_IMG.style.display!="none"){
-//             if((PLANES[i].xCrdnt>PLANES[0].xCrdnt) && (PLANES[i].xCrdnt<rightMyPlanEdge)){
-//                 if((btmPlaneEdge>PLANES[0].yCrdnt) && (btmPlaneEdge<btmMyPlaneEdge)){
-//                     P_IMG.style.display="none";
-//                     lives--;
-//                 }
-//             }
-//             if((rightPlaneEdge>PLANES[0].xCrdnt) && (rightPlaneEdge<rightMyPlanEdge)){
-//                 if((btmPlaneEdge>PLANES[0].yCrdnt) && (btmPlaneEdge<btmMyPlaneEdge)){
-//                     P_IMG.style.display="none";
-//                     lives--;
-//                 }
-//             }
-//         }
-//     }
-// }
-
 function gameOver(){//game over if zero lives left
     const P_IMG = document.querySelector(`.${PLANES[0].class}`);  
     if(lives<=0){
         additionalTacts++;
         if(additionalTacts>6){
             P_IMG.style.display="none";
-            
             output="<h2>Game over!</h2>";
-            output+=`<p>${SHOT_ENEMIES_COUNTER['enemy1stPlane']} x <img src='${IMG[2][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
-            output+=`${SHOT_ENEMIES_COUNTER['enemy2ndPlane']} x <img src='${IMG[3][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
-            output+=`${SHOT_ENEMIES_COUNTER['bossPlane']} x <img src='${IMG[4][1]}' style='width: 25px; margin: 2px; transform: rotate(180deg);'></img></p>`;
+            output+=`<p>${SHOT_ENEMIES_COUNTER['enemy1stPlane']} ✕ <img src='${IMG[2][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
+            output+=`${SHOT_ENEMIES_COUNTER['enemy2ndPlane']} ✕ <img src='${IMG[3][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
+            output+=`${SHOT_ENEMIES_COUNTER['bossPlane']} ✕ <img src='${IMG[4][1]}' style='width: 25px; margin: 2px; transform: rotate(180deg);'></img></p>`;
             GAMEOVER_DIV.innerHTML=output;
             GAMEOVER_DIV.style.left=(0.5*S_WIDTH-0.5*getWidth(GAMEOVER_DIV))+"px";
             GAMEOVER_DIV.style.top=(0.5*S_HEIGHT-0.5*getHeight(GAMEOVER_DIV))+"px";
@@ -839,12 +697,10 @@ function gameWin(){
         additionalTacts++;
         if(additionalTacts>6){
             P_IMG.style.display="none";
-            
             output="<h2>You win!</h2>";
-            output+=`<p>${SHOT_ENEMIES_COUNTER['enemy1stPlane']} x <img src='${IMG[2][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
-            output+=`${SHOT_ENEMIES_COUNTER['enemy2ndPlane']} x <img src='${IMG[3][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
-            output+=`${SHOT_ENEMIES_COUNTER['bossPlane']} x <img src='${IMG[4][1]}' style='width: 25px; margin: 2px; transform: rotate(180deg);'></img></p>`;
-
+            output+=`<p>${SHOT_ENEMIES_COUNTER['enemy1stPlane']} ✕ <img src='${IMG[2][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
+            output+=`${SHOT_ENEMIES_COUNTER['enemy2ndPlane']} ✕ <img src='${IMG[3][1]}' style='width: 20px; margin: 2px; transform: rotate(180deg);'></img><br>`;
+            output+=`${SHOT_ENEMIES_COUNTER['bossPlane']} ✕ <img src='${IMG[4][1]}' style='width: 25px; margin: 2px; transform: rotate(180deg);'></img></p>`;
             GAMEOVER_DIV.innerHTML=output;
             GAMEOVER_DIV.style.left=(0.5*S_WIDTH-0.5*getWidth(GAMEOVER_DIV))+"px";
             GAMEOVER_DIV.style.top=(0.5*S_HEIGHT-0.5*getHeight(GAMEOVER_DIV))+"px";
@@ -861,9 +717,9 @@ function movePlanes(){//moves all enemy airplanes
                 const PLANE_IMG = document.querySelector(`.${PLANES[i].class}`);
                 // let dY = PLANES[0].yCrdnt-PLANES[i].yCrdnt;
                 // let dX = -PLANES[0].xCrdnt+PLANES[i].xCrdnt;
-                let dY = myPlaneTrace.getTipY()-PLANES[i].yCrdnt;
-                let dX = -myPlaneTrace.getTipX()+PLANES[i].xCrdnt;
-                // console.log(myPlaneTrace.getTipX()+" . "+myPlaneTrace.getTipY());
+                let dY = playerTrace.getTipY()-PLANES[i].yCrdnt;
+                let dX = -playerTrace.getTipX()+PLANES[i].xCrdnt;
+                // console.log(playerTrace.getTipX()+" . "+playerTrace.getTipY());
                 if(dY>=0){
                     PLANES[i].angle=90+Math.asin(dX/Math.sqrt(Math.pow(dY, 2)+Math.pow(dX, 2)))/TRIG_K;
                 }else{
@@ -920,9 +776,8 @@ function moveMyAirplane() {// moves my airplane when keyboard arrows are pressed
         PLANES[0].yCrdnt=posY;
         MY_AIRPLANE.style.top=posY+"px";
     }
-    myPlaneTrace.toQueue(PLANES[0].xCrdnt, PLANES[0].yCrdnt);
+    playerTrace.toTrace(PLANES[0].xCrdnt, PLANES[0].yCrdnt);
 }
-
 function play(){
     playGame=setInterval(function(){
         counter++;  
@@ -972,6 +827,51 @@ function pauseGame(){
         GAMEOVER_DIV.style.zIndex=10;
     }
 }
+
+PLAY_SCREEN.style.filter = "brightness(200%)";
+RADIO_DAY.checked = true;
+RADIO_DAY.addEventListener("click", function(){
+    PLAY_SCREEN.style.filter = "brightness(200%)";
+    RADIO_DAY.checked = true;
+    PRGRF.style.color = "black";
+    BODY.style.backgroundColor = "white";
+    LABEL_DAY.style.color = "black";
+    LABEL_NIGHT.style.color = "black";
+    HDNG.style.color = "black";
+    RADIO_DAY.blur();
+    RADIO_NIGHT.blur();
+})
+RADIO_NIGHT.addEventListener("click", function(){
+    PLAY_SCREEN.style.filter = "brightness(100%)";
+    RADIO_NIGHT.checked = true;
+    PRGRF.style.color = "darkgray";
+    BODY.style.backgroundColor = "black";
+    LABEL_DAY.style.color = "darkgray";
+    LABEL_NIGHT.style.color = "darkgray";
+    HDNG.style.color = "darkgray";
+    RADIO_DAY.blur();
+    RADIO_NIGHT.blur();
+})
+BTN_RESTART.addEventListener("click", function(){
+    BTN_RESTART.blur();
+    // PLAY_SCREEN.focus();
+    restart();
+    waitSpacePress();
+})
+window.addEventListener("load", function(){//for chrome browser
+    PLANES[0].xCrdnt=(S_WIDTH-getWidth(MY_AIRPLANE))*0.5;
+    PLANES[0].yCrdnt=S_HEIGHT-getHeight(MY_AIRPLANE);
+    MY_AIRPLANE.style.left=PLANES[0].xCrdnt+"px";
+    MY_AIRPLANE.style.top=PLANES[0].yCrdnt+"px";
+})
+document.addEventListener("keydown", function(e){
+    KEY_PRESSED[e.key] = true;
+    waitSpacePress();
+    pauseGame();
+})
+document.addEventListener("keyup", function(e){
+    delete KEY_PRESSED[e.key];
+})
 
 restart();
 waitSpacePress();

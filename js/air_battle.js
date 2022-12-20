@@ -55,8 +55,8 @@ var playerBulletsPerShot;
 var SHOT_ENEMIES_COUNTER;
 
 class Trace{
+    point=[];
     constructor(num){
-        this.point=[];
         this.queueLength=num;
     };
     toTrace(coordX, coordY){//add player coordinates to array end, deletes first array element, so keeps only last N=num points
@@ -116,7 +116,7 @@ function restart(){//sets default values to all variables
     playerTrace = new Trace(30);// The Boss follows point where player was 30 TACT intervals ago
 
     IMG = [
-        ['img/myPlane0.png','img/myPlane1.png','img/myPlane2.png'],//player airplane
+        ['img/myPlane1.png','img/myPlane0.png','img/myPlane2.png'],//player airplane
         ['img/bullet0.png','img/bullet1.png','img/bullet2.png'],//bullets
         ['img/enemy1stPlane1.png','img/enemy1stPlane0.png','img/enemy1stPlane2.png'],//enemy airplane 
         ['img/enemy2ndPlane2.png','img/enemy2ndPlane0.png','img/enemy2ndPlane1.png'],//enemy airplane 
@@ -186,12 +186,12 @@ function background(){//moves background sea for fly forward illusion
     }
 }
 function getWidth(element){
-    let rectangle=element.getBoundingClientRect();
-    return rectangle.width;
+    let width=element.offsetWidth;
+    return width;
 }
 function getHeight(element){
-    let rectangle=element.getBoundingClientRect();
-    return rectangle.height;
+    let height=element.offsetHeight;
+    return height;
 }
 function propellerRotation(){
     propellerCounter++;
@@ -409,7 +409,6 @@ function enemiesFire(type){//enemy airplane places (fire) bullets, bullets are b
                 BULLETS[i].src=IMG[1][0];
                 BULLET_IMG.setAttribute("src", BULLETS[i].src);
                 BULLETS[i].angle.push(PLANES[i].angle-0.5*(bulletFanAngle-dAngle)+j*dAngle);
-                const fi=PLANES[i].angle-90;
                 const hPlane=getHeight(P_IMG);
                 const wPlane=getWidth(P_IMG);
                 const hBullet=getHeight(BULLET_IMG);
@@ -463,12 +462,19 @@ function killEnemyPlane(){// player bullets collision with enemy airplane
                 if(P_IMG.style.display!="none"){
                     if(isCollision(P_IMG, B_IMG)){
                         if(i!=numOfBossPlane){
-                            P_IMG.style.display="none";
-                            B_IMG.style.display="none";
+                            // P_IMG.style.display="none";
+                            // B_IMG.style.display="none";
                             addToQueue(P_IMG);
+                            // addToQueue(B_IMG);
+                            if(!explodedObject.includes(B_IMG)){
+                                addToQueue(B_IMG);
+                            } 
                         }else{
-                            B_IMG.style.display="none";
-                            bossHealth--;
+                            // B_IMG.style.display="none";
+                            if(!explodedObject.includes(B_IMG)){
+                                addToQueue(B_IMG);
+                                bossHealth--;
+                            } 
                             highlightAnimation(P_IMG);
                             highlightAnimation(BOSS_HEALTH_DIV);
                             if(bossHealth<=0){addToQueue(P_IMG);}
@@ -485,8 +491,11 @@ function isCollision(element0, element1){//detects if centers of two <img> eleme
     const x1=parseFloat(element1.style.left)+0.5*getWidth(element1);;
     const y1=parseFloat(element1.style.top)+0.5*getHeight(element1);;;
     const distance=Math.sqrt(Math.pow((x1-x0), 2)+Math.pow((y1-y0), 2));
-    const r0=0.5*getWidth(element0);
-    const r1=0.5*getWidth(element1);
+    let r0=0.5*getWidth(element0);
+    let r1=0.5*getWidth(element1);
+    if(r0>0.5*getHeight(element0)){r0=0.5*getHeight(element0);}
+    if(r1>0.5*getHeight(element1)){r1=0.5*getHeight(element1);}
+    
     if((r0+r1)>distance){
         return true;
     }else{
@@ -500,10 +509,12 @@ function getPlaneType(element){
 }
 function countShotPlane(element){
     const planeType=getPlaneType(element);
-    if(element!=explodedObject[explodedObject.length-1]){//does not allow to count more than once already shot airplane
+    // if(element!=explodedObject[explodedObject.length-1]){//does not allow to count more than once already shot airplane
+    if(!explodedObject.includes(element)){//does not allow to count more than once already shot airplane
         SHOT_ENEMIES_COUNTER[planeType]++;
         reward(planeType);
     }
+    // console.log(SHOT_ENEMIES_COUNTER);
 }
 function reward(planeType){
     if(planeType=="enemy2ndPlane"){
@@ -556,7 +567,7 @@ function explosion(i){
             explosions[i].style.left=(parseFloat(explodedObject[i].style.left)+0.5*planeWidth-0.5*explosionCounter[i])+"px";
             explosions[i].style.top=(parseFloat(explodedObject[i].style.top)+0.5*planeHeight-0.5*explosionCounter[i])+"px";
         } else if ((explosionCounter[i]>explosionSize) && (explosionCounter[i]<=(2*explosionSize))){//explosion <img> gets smaller
-            explodedObject[i].style.display="none";// airplane is hidden 
+            explodedObject[i].style.display="none";// <img> is hidden 
             explosions[i].style.width=((2*explosionSize)-explosionCounter[i])+"px";
             explosions[i].style.height=((2*explosionSize)-explosionCounter[i])+"px";
             explosions[i].style.left=(parseFloat(explodedObject[i].style.left)+0.5*planeWidth-explosionSize+0.5*explosionCounter[i])+"px";
@@ -575,8 +586,12 @@ function killPlayer(){//enemy airplanes and bullets collision with player airpla
             const B_IMG = document.querySelector(`.${BULLETS[i].class[j]}`);
             if(B_IMG.style.display!="none"){
                 if(isCollision(PLAYER_P_IMG, B_IMG)){
-                    B_IMG.style.display="none";
-                    lives--;
+                    if(!explodedObject.includes(B_IMG)){
+                        lives--;
+                        addToQueue(B_IMG);
+                    } 
+                    // B_IMG.style.display="none";
+                    // lives--;
                     playerBulletsPerShot=1;
                     highlightAnimation(PLAYER_P_IMG);
                     if(lives<=0){addToQueue(PLAYER_P_IMG);}
@@ -589,10 +604,15 @@ function killPlayer(){//enemy airplanes and bullets collision with player airpla
         if(P_IMG.style.display!="none"){
             if(isCollision(PLAYER_P_IMG, P_IMG)){
                 if(i!=numOfBossPlane){
-                    P_IMG.style.display="none";
-                    countShotPlane(P_IMG);
+                    // P_IMG.style.display="none";
+                    // countShotPlane(P_IMG);
+                    if(!explodedObject.includes(P_IMG)){
+                        lives--;
+                        addToQueue(P_IMG);
+                    } 
+                }else{
+                    lives--;
                 }
-                lives--;
                 playerBulletsPerShot=1;
                 highlightAnimation(PLAYER_P_IMG);
                 if(lives<=0){addToQueue(PLAYER_P_IMG);}
@@ -625,7 +645,8 @@ function gameOver(){//game over if zero lives left
             GAMEOVER_DIV.innerHTML=output;
             GAMEOVER_DIV.style.left=(0.5*S_WIDTH-0.5*getWidth(GAMEOVER_DIV))+"px";
             GAMEOVER_DIV.style.top=(0.5*S_HEIGHT-0.5*getHeight(GAMEOVER_DIV))+"px";
-            clearInterval(playGame);            
+            clearInterval(playGame);   
+            planeImgSwap();         
         }
     }
 }
@@ -647,6 +668,7 @@ function gameWin(){
             GAMEOVER_DIV.style.left=(0.5*S_WIDTH-0.5*getWidth(GAMEOVER_DIV))+"px";
             GAMEOVER_DIV.style.top=(0.5*S_HEIGHT-0.5*getHeight(GAMEOVER_DIV))+"px";
             clearInterval(playGame);
+            planeImgSwap();
         }
     }
 }
@@ -760,9 +782,17 @@ function pauseGame(){
         GAMEOVER_DIV.style.left=(0.5*S_WIDTH-0.5*getWidth(GAMEOVER_DIV))+"px";
         GAMEOVER_DIV.style.top=(0.5*S_HEIGHT-0.5*getHeight(GAMEOVER_DIV))+"px";
         GAMEOVER_DIV.style.zIndex=10;
+        planeImgSwap();
     }
 }
-
+function planeImgSwap(){//change <img> source to image with unrotated propeller when pause, game over or win
+    for (let i = PLANES.length-1; i >= 0; i--) {//collision with an enemy plane
+        const P_IMG = document.querySelector(`.${PLANES[i].class}`);
+        if(P_IMG.style.display!="none"){
+            P_IMG.src=PLANES[i].src[1];
+        }
+    }
+}
 PLAY_SCREEN.style.filter = "brightness(200%)";
 RADIO_DAY.checked = true;
 RADIO_DAY.addEventListener("click", function(){

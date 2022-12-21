@@ -1,7 +1,6 @@
 *{
     font-family: Verdana, Geneva, Tahoma, sans-serif;
     box-sizing: border-box;
-    /* border: 1px solid red ; */
 }
 h2{
     text-align: center;
@@ -11,7 +10,7 @@ h2{
     padding: 0px;
     width: 800px;
     height: 450px;
-    /* background-color: #00a6f9; */
+    background-color: #00a6f9;
     background-image: url("../img/backgroung0.png");
     margin-left: auto;
     margin-right: auto;
@@ -31,16 +30,11 @@ h2{
     padding: 0px;
     margin: 0px;
     display: block;
-    /* border: 1px solid red ; */
 }
 img{
     padding: 0px;
     margin: 0px; 
     vertical-align: middle;
-    /* background-position: 50% 50%;
-    transform-origin: 50% 50%;
-    transform-box: fill-box;
-    background-origin: border-box; */
 }
 .plane{
     width: 48px;
@@ -62,5 +56,4 @@ img{
 @keyframes beingShot {
     from {filter:invert(0%);}
     to {filter:invert(100%);}
-
 }
